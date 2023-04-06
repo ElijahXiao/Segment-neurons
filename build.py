@@ -21,7 +21,7 @@ class NeuronDataset(torch.utils.data.Dataset):
         #self.img_dim = self.imgs.shape[1:]
         self.mask = self.get_mask()
         self.transforms = transforms
-        #self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         
     def get_regions(self):
         #with open('train_data/neurofinder.00.00/regions/regions.json') as f:
@@ -58,11 +58,15 @@ class NeuronDataset(torch.utils.data.Dataset):
         return len(self.imgs)
 
 def build_loader(config, is_train, shuffle=True):
-    if is_train: # split the training dataset into training and validation
+    if is_train: # split the training dataset into training and 
         dataset_train = NeuronDataset(config["train_data_path"])
         # Split training data into a training set and a validation set
+        # the class cannot be put into split, wrong implementation  
         dataset_train, dataset_val = train_test_split(dataset_train, test_size=0.2, random_state=42)
+        
+        # start from here, 
         data_loader_train = DataLoader(dataset_train, batch_size=config["batch_size"], shuffle=shuffle)
+        print(torch.cuda.memory_allocated())
         data_loader_val = DataLoader(dataset_val, batch_size=config["batch_size"], shuffle=False)
         return dataset_train, dataset_val, data_loader_train, data_loader_val
     else: # only return test data loader

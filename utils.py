@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import math, time
+import math, time, os
 
 import torch
 
@@ -56,7 +56,7 @@ def output_to_mask(img:torch.Tensor) -> np.ndarray: # for one image
     return output
 
 def outputs_to_masks(imgs: torch.Tensor) -> np.ndarray: # batch size * 2 * 512 * 512 -> batch size * 512 * 512
-    imgs = imgs.permute(0, 2, 3, 1).detach().numpy()
+    imgs = imgs.cpu().permute(0, 2, 3, 1).detach().numpy()
     outputs = []
     for img in imgs:
         output = np.argmax(img, axis=-1)
@@ -79,15 +79,16 @@ def get_checkpoint():
 def load_checkpoint():
     pass
     
-def save_checkpoint(epoch, model, optimizer, lr_scheduler,loss_scaler, save_path):
+def save_checkpoint(epoch, model, optimizer, lr_scheduler,loss_scaler, ckpt_path):
     save_state = {"model":model.state_dict(),
                   "optimizer":optimizer.state_dict(),
                   'lr_scheduler': lr_scheduler.state_dict(),
                   'scaler': loss_scaler.state_dict(),
                   'epoch': epoch,
                   }
+    save_path = os.path.join(ckpt_path, f'ckpt_epoch_{epoch}.pth')
     torch.save(save_state, save_path)
-    #torch.save(save_state ,f"train_data/neurofinder.00.00/checkpoints/model_epoch_{epoch}.pt")
+
         
 def asMinutes(s):
     m = math.floor(s / 60)

@@ -178,7 +178,7 @@ class NeuronDataset(torch.utils.data.Dataset):
         #self.img_dim = self.imgs.shape[1:]
         self.mask = self.get_mask()
         self.transforms = transforms
-        #self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         
     def get_regions(self):
         #with open('train_data/neurofinder.00.00/regions/regions.json') as f:
@@ -214,13 +214,13 @@ class NeuronDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         #img_path = os.path.join(self.root, f"images/image{'{:05d}'.format(idx)}.tiff")
         # transform
-        print(os.path.join(self.root, "images/*.tiff'"))
+        #print(os.path.join(self.root, "images/*.tiff'"))
         img = np.expand_dims(self.imgs[idx], axis = 0) # H * W -> C(1) * H * W
-        img = torch.from_numpy(img)
+        img = torch.from_numpy(img).to(self.device)
         if self.transforms:
             pass
         
-        return img, self.mask
+        return img, self.mask.to(self.device)
     
     def __len__(self):
         return len(self.imgs)
@@ -238,9 +238,10 @@ train_data = NeuronDataset()
 # model
 ****************************************************************
 """
-
+print(torch.cuda.memory_allocated())
 model = SwinUnet.SwinTransformerSys(img_size=512, in_chans=1, num_classes=2, window_size=8)
 model.to(device, non_blocking=True)
+print(torch.cuda.memory_allocated())
 #device = next(model.parameters()).device
 #print(device)
 #summary(model, input_size=(1,512,512)) # get model summary
@@ -283,7 +284,7 @@ def test_forward_new(model, train_data): # unfinished
     show_img(sample, train_mask)
     
     
-test_forward_new(model, train_data)
+#test_forward_new(model, train_data)
 
 
 """
@@ -306,7 +307,9 @@ lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
 #print(train_mask.dtype) #int64
 #loss = criterion(img, train_mask)
 #print(loss)
+print(torch.cuda.memory_allocated())
 train_dataloader = DataLoader(train_data, batch_size=8, shuffle=True)
+print(torch.cuda.memory_allocated())
 #print(len(train_dataloader.dataset)) 3024
 #print(len(train_dataloader.sampler)) 3024
 #test_dataloader = DataLoader(test_data, batch_size=63, shuffle=True)
@@ -331,14 +334,15 @@ def training(device,num_epochs=30, save_res=[5, 15,20,25,30], print_every = 5): 
     torch.cuda.synchronize()
     
     print("start training")
+    print("Max memory used by tensors = {} bytes".format(torch.cuda.max_memory_allocated()))
     start =time.time()
     for epoch in range(1, num_epochs+1):
         model.train()
         train_loss = 0
         for b_idx, (imgs, labels) in enumerate(train_dataloader):
             with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp): # run the forward pass under autocast
-                imgs.to(device, non_blocking=True)
-                labels.to(device, non_blocking=True)
+                #imgs.to(device, non_blocking=True)
+                #labels.to(device, non_blocking=True)
                 
                 #if imgs.device != next(model.parameters()).device:
                 #    print("oh")
@@ -413,7 +417,7 @@ def training(device,num_epochs=30, save_res=[5, 15,20,25,30], print_every = 5): 
             #print('Accuracy: {:.2f}%, Precision: {:.2f}%, Recall: {:.2f}%, F-score: {:.2f}%'.format(
             #100 * total_correct / total_samples, 100 * precision, 100 * recall, 100 * f_score))
         
-#training(device)
+training(device)
 #get_checkpoint()
 
 # testing

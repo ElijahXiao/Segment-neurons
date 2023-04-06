@@ -13,28 +13,18 @@ from timm.utils import AverageMeter
 def train_one_epoch(config, model, criterion, data_loader, optimizer, epoch, lr_scheduler, loss_scaler, start_time):
     model.train()
     loss_meter = AverageMeter()
-    precision_meter = AverageMeter()
-    recall_meter = AverageMeter()
-    f1_meter = AverageMeter()
-    iou_meter = AverageMeter()
     
     for idx, (imgs, labels) in enumerate(data_loader):
-        imgs.to(config["device"], non_blocking=True)
-        labels.to(config["device"], non_blocking=True)
         
-        with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=config["use_amp"]): # run the forward pass under autocast
+        imgs = imgs.to(config["device"])
+        labels = labels.to(config["device"])
+                
+        #with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=config["use_amp"]): # run the forward pass under autocast
+        with torch.cuda.amp.autocast(enabled=config["use_amp"]):
             outputs = model(imgs)
-        
         loss = criterion(outputs, labels)        
-
-        precision, recall, f1_score, iou = eval_metrics(outputs, labels)
-        
+    
         loss_meter.update(loss.item(), config["batch_size"])
-        precision_meter.update(precision, config["batch_size"])
-        recall_meter.update(recall, config["batch_size"])
-        f1_meter.update(f1_score, config["batch_size"])
-        iou_meter.update(iou, config["batch_size"]) 
-        
         loss_scaler.scale(loss).backward()
         loss_scaler.step(optimizer)
         loss_scaler.update()
@@ -51,13 +41,14 @@ def main(config):
     assert config["device"] == torch.device('cuda')
     
     model = SwinUnet.SwinTransformerSys(img_size=512, in_chans=1, num_classes=2, window_size=8)
-    model.to(config["device"], non_blocking=True)
+    model.to(config["device"]) # model memory 122340864 bytes
+    
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
     loss_scaler = torch.cuda.amp.GradScaler(enabled=config["use_amp"])
     dataset_train, dataset_val, data_loader_train, data_loader_val = build_loader(config, is_train=True)    
-
+    print(torch.cuda.memory_allocated())
     gc.collect()
     torch.cuda.empty_cache()
     torch.cuda.reset_max_memory_allocated()
@@ -66,12 +57,15 @@ def main(config):
     print("start training")
     start_time =time.time()
     for epoch in range(1, config["num_epochs"]+1):
-        data_loader_train.sampler.set_epoch(epoch)
-        train_one_epoch(config, model, criterion, data_loader_train, optimizer, epoch, lr_scheduler, loss_scaler, start_time)
-        if epoch & config["save_freq"] == 0:
-            save_checkpoint(epoch, model, optimizer, lr_scheduler,loss_scaler,config["output_path"])
-            
-        precision_avg, recall_avg, f1_avg, iou_avg, loss_avg = validate(data_loader_val, model)
+        # AttributeError: 'RandomSampler' object has no attribute 'set_epoch'
+        #data_loader_train.sampler.set_epoch(epoch) 
+        print("Max memory used by tensors = {} bytes".format(torch.cuda.max_memory_allocated()))
+        #train_one_epoch(config, model, criterion, data_loader_train, optimizer, epoch, lr_scheduler, loss_scaler, start_time)
+        if epoch % config["save_freq"] == 0:
+            #save_checkpoint(epoch, model, optimizer, lr_scheduler,loss_scaler,config["ckpt_path"])
+            pass
+        
+        precision_avg, recall_avg, f1_avg, iou_avg, loss_avg = validate(config, data_loader_val, model)
         print("val: ",precision_avg, recall_avg, f1_avg, iou_avg, loss_avg)
         
     torch.cuda.synchronize()
