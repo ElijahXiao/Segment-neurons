@@ -31,7 +31,7 @@ def validate(config, data_loader, model):
         loss = criterion(outputs, labels)        
         outputs = outputs_to_masks(outputs)
         labels = labels.cpu().numpy()
-        print(outputs.size, labels.size)
+        print(outputs.shape, labels.shape)
         precision, recall, f1_score, iou = eval_metrics(outputs, labels)
         
         loss_meter.update(loss.item(), config["batch_size"])
