@@ -31,7 +31,8 @@ def validate(config, data_loader, model):
         loss = criterion(outputs, labels)        
         outputs = outputs_to_masks(outputs)
         labels = labels.cpu().numpy()
-        print(outputs.shape, labels.shape)
+        # batch size * 512 * 512
+        #print(outputs.shape, labels.shape) 
         precision, recall, f1_score, iou = eval_metrics(outputs, labels)
         
         loss_meter.update(loss.item(), config["batch_size"])
@@ -53,8 +54,8 @@ def eval_metrics(outputs, targets):
     #batch_size = outputs.shape(0)
     #outputs = outputs.reshape(batch_size, -1)
     #targets = targets.reshape(batch_size, -1)
-    #outputs = outputs.flatten()
-    #targets = targets.flatten()
+    outputs = outputs.flatten()
+    targets = targets.flatten()
         
     # Calculate precision, recall, F1 score and intersection over union (IoU)
     precision = precision_score(targets, outputs, average="micro")

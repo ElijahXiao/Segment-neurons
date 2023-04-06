@@ -20,6 +20,7 @@ print(device)
 
 # helper functions
 def show_img(img, masks):
+    print("fuck img")
     plt.figure()
     plt.subplot(1, 2, 1)
     #plt.title("raw image")
@@ -35,7 +36,7 @@ def show_img(img, masks):
     plt.imshow(masks, cmap='gray')
     plt.suptitle("From raw data to segmented image",fontsize=15)
     plt.subplots_adjust(top=1.1)
-    plt.show(block=True)
+    plt.show(block=False)
     
 def show_4img(imgs):
     fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(8, 8))
@@ -67,7 +68,7 @@ def output_to_mask(img:torch.Tensor) -> np.ndarray: # batch size * 2 * 512 * 512
     return output
 
 def outputs_to_mask(imgs: torch.Tensor) -> np.ndarray: # batch size * 2 * 512 * 512 -> 512 * 512
-    imgs = imgs.permute(0, 2, 3, 1).detach().numpy()
+    imgs = imgs.cpu().permute(0, 2, 3, 1).detach().numpy()
     outputs = []
     for img in imgs:
         output = np.argmax(img, axis=-1)
@@ -171,14 +172,15 @@ class NeuronDataset(torch.utils.data.Dataset):
         self.root = root # path of dataset
         self.transforms = transforms # data preprocessing
         self.regions = self.get_regions() # coordinates of all neurons         
-        #self.imgs = np.array([imageio.imread(f) for f in glob(('train_data/neurofinder.00.00/images/*.tiff'))],dtype=np.float32)
-        self.imgs = np.array([imageio.imread(f) for f in glob(os.path.join(root, "images/*.tiff"))],dtype=np.float32)
+        self.imgs = np.array([imageio.imread(f) for f in glob(('data/train_data1/neurofinder.00.00/images/*.tiff'))],dtype=np.float32)
+        #self.imgs = np.array([imageio.imread(f) for f in glob(os.path.join(root, "images/*.tiff"))],dtype=np.float32)
         # load all image files, sorting them to ensure that they are aligned
         #self.imgs = list(sorted(os.listdir(os.path.join(root, "images"))))
         #self.img_dim = self.imgs.shape[1:]
         self.mask = self.get_mask()
         self.transforms = transforms
-        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        #self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+
         
     def get_regions(self):
         #with open('train_data/neurofinder.00.00/regions/regions.json') as f:
@@ -216,11 +218,11 @@ class NeuronDataset(torch.utils.data.Dataset):
         # transform
         #print(os.path.join(self.root, "images/*.tiff'"))
         img = np.expand_dims(self.imgs[idx], axis = 0) # H * W -> C(1) * H * W
-        img = torch.from_numpy(img).to(self.device)
+        img = torch.from_numpy(img)
         if self.transforms:
             pass
         
-        return img, self.mask.to(self.device)
+        return img, self.mask
     
     def __len__(self):
         return len(self.imgs)
@@ -238,9 +240,8 @@ train_data = NeuronDataset()
 # model
 ****************************************************************
 """
-print(torch.cuda.memory_allocated())
 model = SwinUnet.SwinTransformerSys(img_size=512, in_chans=1, num_classes=2, window_size=8)
-model.to(device, non_blocking=True)
+model.to(device)
 print(torch.cuda.memory_allocated())
 #device = next(model.parameters()).device
 #print(device)
@@ -271,17 +272,34 @@ def test_forward():
     #show_img(sample, output_mask)
 
 def test_forward_new(model, train_data): # unfinished
-    sample, train_mask = train_data.__getitem__(0)
+    sample, train_mask = train_data.__getitem__(0)    
+    
+    sample = sample.view(512,512)
+    sample = sample.numpy()
     print(sample.shape)
+    show_img(sample, sample)
+    
     sample = sample.view(1,1,512,512) # add batch size
     output = model(sample)    
     #print(output.shape) 1,2,512,512
     output_mask = outputs_to_mask(output)
     sample = sample.view(512,512)
-    imgs = [output_mask] * 4
+    #imgs = [output_mask[0]] * 4
+    #sample = sample.cpu().numpy()
+    #train_mask = train_mask.cpu().numpy()
+    print(sample.shape)
+    #show_img(sample, sample)
     
     #show_4img(imgs)
-    show_img(sample, train_mask)
+    sample = sample.cpu().numpy()
+    train_mask = train_mask.numpy()
+    show_img(train_mask, train_mask)
+    train_mask = torch.from_numpy(train_mask).to(device)
+    train_mask = train_mask.cpu().numpy()
+    show_img(train_mask, train_mask)
+
+    #show_img(sample, train_mask) 
+    #show_img(sample, sample)
     
     
 #test_forward_new(model, train_data)
@@ -294,7 +312,7 @@ def test_forward_new(model, train_data): # unfinished
 """
 #criterion = nn.NLLLoss2d()
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
 
 #log_softmax = nn.LogSoftmax(dim=1)
@@ -338,30 +356,26 @@ def training(device,num_epochs=30, save_res=[5, 15,20,25,30], print_every = 5): 
     start =time.time()
     for epoch in range(1, num_epochs+1):
         model.train()
+        optimizer.zero_grad()
         train_loss = 0
         for b_idx, (imgs, labels) in enumerate(train_dataloader):
+            imgs = imgs.to(device)
+            labels = labels.to(device)
             with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp): # run the forward pass under autocast
-                #imgs.to(device, non_blocking=True)
-                #labels.to(device, non_blocking=True)
                 
-                #if imgs.device != next(model.parameters()).device:
-                #    print("oh")
-                #    imgs = imgs.to(next(model.parameters()).device)
-                
-                #print(imgs.device)
-                #print(labels.device)
                 outputs = model(imgs)
-                loss = criterion(outputs, labels)
+              
+            loss = criterion(outputs+(1e-8), labels)
                 
             loss_scaler.scale(loss).backward()
             loss_scaler.step(optimizer)
             loss_scaler.update()
-            optimizer.zero_grad()
             train_loss += loss.item()
             
         avg_train_loss = train_loss / len(train_dataloader)
         lr_scheduler.step(avg_train_loss)
         print_loss_total += train_loss
+        print(avg_train_loss)
         
         if epoch % print_every == 0:
             print_loss_avg = print_loss_total / print_every
@@ -380,7 +394,7 @@ def training(device,num_epochs=30, save_res=[5, 15,20,25,30], print_every = 5): 
                           'epoch': epoch,
                           "output":output
                           }
-            torch.save(save_state ,f"train_data/neurofinder.00.00/checkpoints/model_epoch_{epoch}.pt")
+            #torch.save(save_state ,f"train_data/neurofinder.00.00/checkpoints/model_epoch_{epoch}.pt")
     torch.cuda.synchronize()
         
             # Validation

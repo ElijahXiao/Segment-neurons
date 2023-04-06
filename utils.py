@@ -108,7 +108,7 @@ def test_forward(config):
     dataset_train, dataset_val, data_loader_train, data_loader_val = build_loader(config, is_train=True)
     
     sample, train_mask = dataset_train.__getitem__(0)
-    print(sample.shape)
+    print(sample.shape, train_mask.shape)
     sample = sample.view(1,1,512,512) # add batch size
     output = model(sample)    
     #print(output.shape) 1,2,512,512

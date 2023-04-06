@@ -7,6 +7,8 @@ from sklearn.model_selection import train_test_split
 
 import torch
 from torch.utils.data import DataLoader
+from torchvision import transforms
+from PIL import Image
 
 # custom dataset
 class NeuronDataset(torch.utils.data.Dataset):
@@ -47,10 +49,16 @@ class NeuronDataset(torch.utils.data.Dataset):
         
     def __getitem__(self, idx):
         # transform
-        img = np.expand_dims(self.imgs[idx], axis = 0) # H * W -> C(1) * H * W
-        img = torch.from_numpy(img)
+        #img = np.expand_dims(self.imgs[idx], axis = 0) # H * W -> C(1) * H * W
+        img = Image.fromarray(self.imgs[idx]) # PIL.image
+        img = img.convert("RGB")
         if self.transforms:
             pass
+        
+        transform = transforms.ToTensor()
+        img = transform(img)
+        img = img[0]
+        img = img.unsqueeze(0)
         
         return img, self.mask
     
@@ -66,7 +74,7 @@ def build_loader(config, is_train, shuffle=True):
         
         # start from here, 
         data_loader_train = DataLoader(dataset_train, batch_size=config["batch_size"], shuffle=shuffle)
-        print(torch.cuda.memory_allocated())
+        # print(torch.cuda.memory_allocated()) 0
         data_loader_val = DataLoader(dataset_val, batch_size=config["batch_size"], shuffle=False)
         return dataset_train, dataset_val, data_loader_train, data_loader_val
     else: # only return test data loader
