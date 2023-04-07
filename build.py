@@ -50,16 +50,18 @@ class NeuronDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         # transform
         #img = np.expand_dims(self.imgs[idx], axis = 0) # H * W -> C(1) * H * W
-        img = Image.fromarray(self.imgs[idx]) # PIL.image
-        img = img.convert("RGB")
+        #img = Image.fromarray(self.imgs[idx]) # PIL.image
+        #img = img.convert("RGB")
         if self.transforms:
             pass
         
-        transform = transforms.ToTensor()
-        img = transform(img)
-        img = img[0]
-        img = img.unsqueeze(0)
+        #transform = transforms.ToTensor()
+        #img = transform(img)
+        #img = img[0]
+        #img = img.unsqueeze(0)
         
+        img = np.expand_dims(self.imgs[idx], axis = 0) # H * W -> C(1) * H * W
+        img = torch.from_numpy(img)
         return img, self.mask
     
     def __len__(self):
@@ -68,6 +70,7 @@ class NeuronDataset(torch.utils.data.Dataset):
 def build_loader(config, is_train, shuffle=True):
     if is_train: # split the training dataset into training and 
         dataset_train = NeuronDataset(config["train_data_path"])
+    
         # Split training data into a training set and a validation set
         # the class cannot be put into split, wrong implementation  
         dataset_train, dataset_val = train_test_split(dataset_train, test_size=0.2, random_state=42)
@@ -82,6 +85,18 @@ def build_loader(config, is_train, shuffle=True):
         data_loader_test = DataLoader(dataset_test, batch_size=config["batch_size"], shuffle=False)
         return dataset_test, data_loader_test
         
+if __name__ == "__main__":
+    config = {"batch_size":8,
+              "num_epochs":10,
+              "save_freq":1,
+              "use_amp":True,
+              "device": torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu'),
+              "train_data_path":"data/train_data1/neurofinder.00.00",
+              "test_data_path":"data/test_data1/neurofinder.00.00.test",
+              "ckpt_path":"checkpoints/T2_batch8",
+              "log_path":"logs/T2_batch8.txt"
+            }
+    _,_,_,_ = build_loader(config,True)
 
     
     

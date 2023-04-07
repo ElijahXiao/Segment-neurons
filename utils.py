@@ -100,7 +100,7 @@ def timeSince(since, percent):
     s = now - since
     es = s / (percent)
     rs = es - s
-    return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
+    return 'elapsed time: %s, remain time: %s' % (asMinutes(s), asMinutes(rs))
 
 @torch.no_grad()
 def test_forward(config):

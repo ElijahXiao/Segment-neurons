@@ -9,7 +9,7 @@ from utils import outputs_to_masks
 from timm.utils import AverageMeter
 
 @torch.no_grad()
-def validate(config, data_loader, model):
+def validate(config, data_loader, model, logger):
     criterion = nn.CrossEntropyLoss()
     model.eval()
     
@@ -19,14 +19,13 @@ def validate(config, data_loader, model):
     f1_meter = AverageMeter()
     iou_meter = AverageMeter()
     
-    print("start validate")
-    end = time.time()
+    start_time = time.time()
     for idx, (imgs, labels) in enumerate(data_loader):
         imgs = imgs.to(config["device"])
         labels = labels.to(config["device"])
                 
-        with torch.cuda.amp.autocast(enabled=config["use_amp"]):
-            outputs = model(imgs)
+        #with torch.cuda.amp.autocast(enabled=config["use_amp"]):
+        outputs = model(imgs)
         
         loss = criterion(outputs, labels)        
         outputs = outputs_to_masks(outputs)
@@ -41,10 +40,16 @@ def validate(config, data_loader, model):
         f1_meter.update(f1_score, config["batch_size"])
         iou_meter.update(iou, config["batch_size"]) 
         
-        end = time.time()
-        
-        #if idx % print_freq == 0:
-        #    pass
+    memory_used = torch.cuda.max_memory_allocated() / (1024.0 * 1024.0)
+    logger.info(
+        f'Validate\t'
+        f'Time {time.time() - start_time}\t'
+        f'loss {loss_meter.val:.4f} ({loss_meter.avg:.4f})\t'
+        f'precision {precision_meter.val:.4f} ({precision_meter.avg:.4f})\t'
+        f'recall {recall_meter.val:.4f} ({recall_meter.avg:.4f})\t'
+        f'f1 score {f1_meter.val:.4f} ({f1_meter.avg:.4f})\t'
+        f'iou {iou_meter.val:.4f} ({iou_meter.avg:.4f})\t'
+        f'mem {memory_used:.0f}MB')
         
     return precision_meter.avg, recall_meter.avg, f1_meter.avg, iou_meter.avg, loss_meter.avg
         
